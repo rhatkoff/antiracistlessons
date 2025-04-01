@@ -1,100 +1,60 @@
+# app.py
 import streamlit as st
+import openai
+import pandas as pd
+import gspread
+from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 
-# App Title
-st.title('🌱 Antiracist & Community Cultural Wealth Lesson Planner')
+# --- SETUP ---
+openai.api_key = st.secrets["openai"]["api_key"]
 
-# Sidebar for lesson details
-st.sidebar.header('📋 Lesson Details')
-subject = st.sidebar.selectbox(
-    'Subject',
-    [
-        '📐 Math',
-        '🔬 Science',
-        '📚 English Language Arts',
-        '🌍 Social Science',
-        '🗣️ World Language',
-        '🎒 Multiple Subjects',
-        '🧩 Other'
-    ]
-)
-grade = st.sidebar.selectbox('🎓 Grade Level', ['TK-2', '3-5', '6-8', '9-12'])
-topic = st.sidebar.text_input('🧠 Lesson Topic', 'Vertebrate Biology')
-zip_code = st.sidebar.text_input('📍 ZIP Code', '91711')
+# Google Sheets setup
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+client = gspread.authorize(creds)
+sheet = client.open("Antiracist Lesson Connections").sheet1
 
-# Main content
-st.header('📑 Personalized Lesson Plan Suggestions')
+# --- UI ---
+st.title("🌱 Antiracist Lesson Planner with Community & Cultural Wealth")
 
-st.write(f'**Subject:** {subject}')
-st.write(f'**Grade:** {grade}')
-st.write(f'**Topic:** {topic}')
-st.write(f'**ZIP Code:** {zip_code}')
+with st.form("lesson_form"):
+    grade = st.selectbox("🎓 Grade Level", ["TK-2", "3-5", "6-8", "9-12"])
+    subject = st.selectbox("📘 Subject", ["Math", "Science", "ELA", "Social Science", "World Language", "Multiple Subjects", "Other"])
+    standard = st.text_area("📚 Standard (Paste the full text)")
+    zip_code = st.text_input("📍 ZIP Code (for local connections)")
+    submit = st.form_submit_button("Generate Antiracist Connections")
 
-# Antiracist connections
-st.subheader('✊🏽 Antiracist Connections')
-st.markdown("""
-- **🗣️ Discussion Topic:** How has racism shaped our understanding of this topic historically and currently?
-- **📄 Assignment:** Research how communities of color have been impacted by or contributed to this area of study.
-- **📝 Assessment:** Students critically analyze a resource/text to identify potential biases.
-- **👨🏽‍👩🏽‍👧🏽 Questions for Caregivers:** Discuss family experiences related to the topic and any knowledge passed down through generations.
-- **🤝🏽 Community Project:** Organize interviews with community elders about their experiences with this subject.
-""")
+# --- PROMPT FUNCTION ---
+def generate_connections(standard, grade, subject, zip_code):
+    prompt = f"""
+You are an antiracist educator designing culturally sustaining instruction. The standard is:
+"{standard}"
+The user is teaching {subject} at the {grade} level in ZIP code {zip_code}.
 
-# Local community connections
-st.subheader('🏘️ Local Community Connections')
-st.markdown(f"""
-Based on your ZIP code ({zip_code}), consider connecting with:
-- 🏛️ Local museums or cultural centers relevant to your topic
-- 🏡 Community-based organizations that support diverse voices and experiences
-- 🎓 Nearby universities or colleges for guest speakers and expertise
-- 📍 Historical landmarks or sites related to the topic
-""")
-
-# Relevant & Diverse Voices
-st.subheader('👩🏽‍🏫 Relevant & Diverse Scholars, Activists, and Experts')
-st.markdown("""
-- 🎙️ Highlight scholars or activists who have critically engaged with issues of race and equity in your subject area.
-- 📚 Identify experts whose lived experiences provide valuable perspectives.
-- 🔗 Include resources or writings by these individuals in your teaching materials.
-""")
-
-# Standards Section
-st.subheader('📘 Standards Alignment')
-st.markdown("""
-- 🏛️ **California State Standards:** Search for relevant content standards at [CDE Content Standards](https://www.cde.ca.gov/be/st/ss/).
-- 🔬 **NGSS (Next Generation Science Standards):** Match disciplinary core ideas, science practices, and crosscutting concepts at [NextGenScience.org](https://www.nextgenscience.org/).
-- 🗂️ **CA ELD Standards:** Refer to proficiency level descriptors and Part I/II standards at [CDE ELD Standards](https://www.cde.ca.gov/sp/el/er/eldstandards.asp).
-
-💡 *Pro Tip:* Align your content, language objectives, and social justice goals for deeper impact.
-""")
-
-# Generate Downloadable Template
-lesson_plan = f"""
-Subject: {subject}
-Grade: {grade}
-Topic: {topic}
-ZIP Code: {zip_code}
-
-Antiracist Connections:
-- Discussion Topic:
-- Assignment:
-- Assessment:
-- Questions for Caregivers:
-- Community Project:
-
-Local Community Connections:
-- Local Resources:
-- Organizations:
-- Experts:
-
-Relevant & Diverse Voices:
-- Scholars:
-- Activists:
-- Experts:
-
-Standards Alignment:
-- California State Standards:
-- NGSS:
-- CA ELD Standards:
+Generate:
+1. A critical or justice-centered real-world context
+2. A project idea that connects to students’ lives or communities
+3. A caregiver engagement question
+4. A connection to a diverse mathematician, activist, or cultural practice
 """
 
-st.download_button('📥 Download Lesson Plan Template', lesson_plan, file_name='personalized_lesson_plan.txt')
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "system", "content": "You are a helpful, equity-focused educator assistant."},
+                 {"role": "user", "content": prompt}]
+    )
+    return response['choices'][0]['message']['content']
+
+# --- GENERATE & DISPLAY ---
+if submit and standard:
+    with st.spinner("Generating antiracist connections..."):
+        output = generate_connections(standard, grade, subject, zip_code)
+        st.markdown("### 🧠 Generated Suggestions")
+        st.markdown(output)
+
+        # Save to Google Sheet
+        row = [datetime.now().isoformat(), grade, subject, standard, zip_code, output]
+        sheet.append_row(row)
+
+        st.success("Saved to Google Sheet ✅")
