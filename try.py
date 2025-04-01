@@ -1,3 +1,17 @@
+import openai
+import streamlit as st
+st.markdown("### ✅ OpenAI Connection Test")
+try:
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "user", "content": "Say hello to my classroom!"}
+        ]
+    )
+    message = response['choices'][0]['message']['content']
+    st.success("Connected to GPT-4 ✅\n\nGPT says: " + message)
+except Exception as e:
+    st.error("❌ OpenAI error: " + str(e))
 # app.py
 import streamlit as st
 import openai
