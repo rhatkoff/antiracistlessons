@@ -2,10 +2,17 @@ import openai
 import streamlit as st
 st.markdown("### ✅ OpenAI Connection Test")
 try:
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "user", "content": "Say hello to my classroom!"}
+   client = openai.OpenAI(api_key=st.secrets["openai"]["api_key"])
+
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Say hello to my classroom!"}
+    ]
+)
+
+message = response.choices[0].message.content
         ]
     )
     message = response['choices'][0]['message']['content']
