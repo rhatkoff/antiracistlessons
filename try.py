@@ -1,42 +1,21 @@
-import openai
-import streamlit as st
-st.markdown("### ✅ OpenAI Connection Test")
-try:
-   client = openai.OpenAI(api_key=st.secrets["openai"]["api_key"])
-
-response = client.chat.completions.create(
-    model="gpt-4",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Say hello to my classroom!"}
-    ]
-)
-
-message = response.choices[0].message.content
-        ]
-    )
-    message = response['choices'][0]['message']['content']
-    st.success("Connected to GPT-4 ✅\n\nGPT says: " + message)
-except Exception as e:
-    st.error("❌ OpenAI error: " + str(e))
 # app.py
 import streamlit as st
 import openai
 import pandas as pd
 import gspread
 from datetime import datetime
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
-# --- SETUP ---
-openai.api_key = st.secrets["openai"]["api_key"]
+# --- OPENAI SETUP ---
+client = openai.OpenAI(api_key=st.secrets["openai"]["api_key"])
 
-# Google Sheets setup
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
-client = gspread.authorize(creds)
-sheet = client.open("Antiracist Lesson Connections").sheet1
+# --- GOOGLE SHEETS SETUP ---
+scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+client_gsheets = gspread.authorize(creds)
+sheet = client_gsheets.open("Antiracist Lesson Connections").sheet1
 
-# --- UI ---
+# --- STREAMLIT UI ---
 st.title("🌱 Antiracist Lesson Planner with Community & Cultural Wealth")
 
 with st.form("lesson_form"):
@@ -46,7 +25,7 @@ with st.form("lesson_form"):
     zip_code = st.text_input("📍 ZIP Code (for local connections)")
     submit = st.form_submit_button("Generate Antiracist Connections")
 
-# --- PROMPT FUNCTION ---
+# --- GENERATE GPT RESPONSE ---
 def generate_connections(standard, grade, subject, zip_code):
     prompt = f"""
 You are an antiracist educator designing culturally sustaining instruction. The standard is:
@@ -60,14 +39,16 @@ Generate:
 4. A connection to a diverse mathematician, activist, or cultural practice
 """
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role": "system", "content": "You are a helpful, equity-focused educator assistant."},
-                 {"role": "user", "content": prompt}]
+        messages=[
+            {"role": "system", "content": "You are a helpful, equity-focused educator assistant."},
+            {"role": "user", "content": prompt}
+        ]
     )
-    return response['choices'][0]['message']['content']
+    return response.choices[0].message.content
 
-# --- GENERATE & DISPLAY ---
+# --- DISPLAY AND SAVE ---
 if submit and standard:
     with st.spinner("Generating antiracist connections..."):
         output = generate_connections(standard, grade, subject, zip_code)
